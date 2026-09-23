@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1c1f24">
+  <meta name="description" content="A guild war report for Warhammer 40,000: Tacticus.">
+  <title>Guild War Report</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="masthead">
+      <div class="brand-mark" aria-hidden="true">✦</div>
+      <div>
+        <p class="eyebrow">Tacticus / Guild War Intelligence</p>
+        <h1>War Report</h1>
+      </div>
+      <div id="season-badge" class="season-badge">Season —</div>
+    </header>
+
+    <main id="report" aria-live="polite">
+      <section class="panel empty-state">
+        <p class="eyebrow">Awaiting signal</p>
+        <h2>Loading the latest war report…</h2>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Unofficial fan tool, not affiliated with Snowprint Studios.</span>
+      <span id="updated"></span>
+    </footer>
+  </div>
+</body>
+</html>

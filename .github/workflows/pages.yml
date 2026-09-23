@@ -1,0 +1,55 @@
+name: Publish War Report
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch latest public report
+        env:
+          REPORT_FEED_URL: ${{ secrets.REPORT_FEED_URL }}
+        run: |
+          if [ -n "$REPORT_FEED_URL" ]; then
+            curl --fail --location --silent --show-error --retry 3 --max-time 45 \
+              "$REPORT_FEED_URL" --output "$RUNNER_TEMP/report.json"
+            python3 - "$RUNNER_TEMP/report.json" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as stream:
+              payload = json.load(stream)
+          assert payload.get("status") in ("ok", "no_report"), "Unexpected report feed response"
+          if payload["status"] == "ok":
+              report = payload.get("report")
+              assert isinstance(report, dict) and "players" not in report, "Unsafe report feed"
+              assert isinstance(report.get("us"), dict) and isinstance(report.get("them"), dict), "Incomplete report feed"
+          PY
+            cp "$RUNNER_TEMP/report.json" site/report.json
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
