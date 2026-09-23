@@ -64,8 +64,8 @@ h3 { font-size: 1rem; }
   text-transform: uppercase;
   white-space: nowrap;
 }
-main { display: grid; gap: 20px; padding: 28px 0 48px; }
-.panel { background: var(--panel); border: 1px solid #41464e; border-radius: 11px; box-shadow: 0 14px 35px #00000012; }
+main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 28px 0 48px; }
+.panel { min-width: 0; background: var(--panel); border: 1px solid #41464e; border-radius: 11px; box-shadow: 0 14px 35px #00000012; }
 .empty-state { padding: 65px 28px; text-align: center; }
 .empty-state h2 { margin-top: 10px; }
 .empty-state p:last-child { color: var(--muted); margin-top: 10px; }
