@@ -6,6 +6,8 @@ const updated = document.getElementById("updated");
 const NS = "http://www.w3.org/2000/svg";
 const count = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString("en-US") : "—";
 const percent = value => Number.isFinite(Number(value)) ? `${Math.round(Number(value) * 100)}%` : "—";
+const decimal = value => Number.isFinite(Number(value))
+  ? Number(value).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 }) : "—";
 const text = value => value === null || value === undefined || value === "" ? "—" : String(value);
 
 function node(tag, className, content) {
@@ -71,22 +73,20 @@ function season(report) {
 }
 
 function stats(report) {
-  const section = panel("Battlefield statistics");
+  const section = panel("War pulse");
+  section.append(node("p", "section-intro", "Four numbers that tell the story of this matchup."));
   const grid = node("div", "stats");
   const rows = [
     ["Points per token", report.us.ppt, report.them.ppt, count],
-    ["Tokens used", report.us.tokens, report.them.tokens, count],
     ["Lineups broken", report.us.lineups, report.them.lineups, count],
-    ["Win rate", report.us.winPct, report.them.winPct, percent],
     ["First-hit win rate", report.us.firstHitPct, report.them.firstHitPct, percent],
     ["First wipe · hours", report.us.wipeHours, report.them.wipeHours, value => value == null ? "—" : text(value)],
-    ["First wipe · tokens", report.us.wipeTokens, report.them.wipeTokens, value => value == null ? "—" : count(value)],
   ];
   rows.forEach(([label, us, them, format]) => {
     const card = node("div", "stat");
     const values = node("div", "stat-values");
     values.append(node("strong", "", format(us)), node("span", "muted", "vs"), node("strong", "", format(them)));
-    card.append(node("p", "label", label), values);
+    card.append(node("p", "label", label), values, node("p", "stat-legend", "Our guild · Opponent"));
     grid.append(card);
   });
   section.append(grid);
@@ -94,7 +94,8 @@ function stats(report) {
 }
 
 function chart(report) {
-  const section = panel("Score over time");
+  const section = panel("How the war unfolded");
+  section.append(node("p", "section-intro", "Cumulative points from the opening hour to the final attack."));
   const series = report.series || {};
   const hours = Array.isArray(series.hours) ? series.hours : [];
   const ours = Array.isArray(series.us) ? series.us : [];
@@ -138,19 +139,68 @@ function chart(report) {
 
 function honours(report) {
   if (!report.usKnown) return null;
-  const section = panel("War honours");
+  const section = panel("Attack honours");
   const cards = node("div", "cards");
-  (report.mvps || []).forEach(mvp => {
+  (report.mvps || []).filter(mvp => mvp.title !== "Iron Wall" || !report.defense).forEach(mvp => {
     const card = node("article", "card");
     card.append(node("h3", "", mvp.title), node("span", "winner", mvp.player),
       node("p", "detail", mvp.value));
     cards.append(card);
   });
-  const full = node("article", "card full");
-  full.append(node("h3", "", "Full Tokens"), node("span", "winner",
-    (report.fullTokens || []).length ? report.fullTokens.join(", ") : "None yet"));
-  cards.append(full);
   section.append(cards);
+  const fullTokens = Array.isArray(report.fullTokens) ? report.fullTokens : [];
+  const full = node("details", "full-tokens");
+  const summary = node("summary");
+  summary.append(node("span", "", "Full-token players"), node("strong", "", count(fullTokens.length)),
+    node("span", "muted", "Show names"));
+  full.append(summary, node("p", "", fullTokens.length ? fullTokens.join(" · ") : "None yet"));
+  section.append(full);
+  return section;
+}
+
+function defense(report) {
+  const data = report.defense;
+  if (!data || !Array.isArray(data.top) || !data.top.length) return null;
+  const section = panel("Defence standouts");
+  section.classList.add("defense-section");
+  section.append(node("p", "section-intro", `${count(data.totalAbsorbed)} enemy attacks faced across ${count(data.defendersCount)} defenders. Higher attacks per break means a tougher defence.`));
+
+  const spotlights = node("div", "defense-spotlights");
+  function spotlight(label, defender, number, unit, detail) {
+    if (!defender) return;
+    const card = node("article", "defense-spotlight");
+    card.append(node("p", "eyebrow", label), node("h3", "", defender.player));
+    const figure = node("div", "defense-figure");
+    figure.append(node("strong", "", number), node("span", "", unit));
+    card.append(figure, node("p", "spotlight-detail", detail));
+    spotlights.append(card);
+  }
+  const hardest = data.top[0];
+  spotlight("Hardest to break", hardest,
+    hardest.broken ? decimal(hardest.perBreak) : `${count(hardest.absorbed)}+`,
+    "attacks per break", `${count(hardest.absorbed)} attacks absorbed · Best stand ${count(hardest.bestStand)} attacks`);
+  const most = data.mostAbsorbed;
+  spotlight("Most pressure absorbed", most, count(most.absorbed), "enemy attacks",
+    `${count(most.broken)} lineups broken · ${decimal(most.perBreak)} attacks per break`);
+  section.append(spotlights);
+
+  section.append(node("h3", "subheading", "Top defenders"));
+  const list = node("ol", "defense-list");
+  const ceiling = Math.max(1, ...data.top.map(d => Number(d.perBreak) || 0));
+  data.top.forEach((defender, index) => {
+    const item = node("li", "defender-row");
+    item.append(node("span", "defender-rank", String(index + 1)),
+      node("strong", "defender-name", defender.player));
+    const meter = node("div", "defender-meter");
+    const fill = node("span", "defender-meter-fill");
+    fill.style.width = `${Math.max(0, Math.min(100, Number(defender.perBreak) / ceiling * 100))}%`;
+    meter.append(fill);
+    item.append(meter,
+      node("strong", "defender-rate", defender.broken ? decimal(defender.perBreak) : `${count(defender.absorbed)}+`),
+      node("span", "defender-meta", `${count(defender.absorbed)} faced · ${count(defender.broken)} broken`));
+    list.append(item);
+  });
+  section.append(list, node("p", "fine-print", "Attacks per break = enemy attacks faced ÷ lineups broken. A + means the defender had not yet been broken."));
   return section;
 }
 
@@ -173,6 +223,22 @@ function table(headers, rows) {
 }
 
 function details(report) {
+  const disclosure = node("details", "panel deep-dive");
+  const summary = node("summary", "deep-dive-summary");
+  summary.append(node("span", "", "Detailed breakdown"),
+    node("small", "", "Extra stats, sectors and enemy teams"));
+  disclosure.append(summary);
+  const content = node("div", "deep-dive-content");
+  const extras = node("div", "extra-stats");
+  [["Tokens used", report.us.tokens, report.them.tokens, count],
+    ["Overall attack win rate", report.us.winPct, report.them.winPct, percent],
+    ["First wipe · tokens", report.us.wipeTokens, report.them.wipeTokens,
+      value => value == null ? "—" : count(value)]].forEach(([label, us, them, format]) => {
+    const item = node("div", "extra-stat");
+    item.append(node("span", "", label), node("strong", "", `${format(us)} vs ${format(them)}`));
+    extras.append(item);
+  });
+  content.append(extras);
   const lower = node("div", "lower");
   const sectors = panel("Sectors destroyed");
   const sectorRows = (report.sectors || []).map(item => [item.label, count(item.us), count(item.them)]);
@@ -187,7 +253,9 @@ function details(report) {
   enemy.append(teams.length ? table(["Most-used team", "Uses", "Win %"], teams)
     : node("p", "muted", "No repeated enemy teams yet."));
   lower.append(sectors, enemy);
-  return lower;
+  content.append(lower);
+  disclosure.append(content);
+  return disclosure;
 }
 
 function render(report) {
@@ -195,6 +263,8 @@ function render(report) {
   badge.textContent = `Season ${report.season || "?"}`;
   if (report.generatedAt) updated.textContent = `Report generated ${new Date(report.generatedAt).toLocaleString()}`;
   root.replaceChildren(hero(report), season(report), stats(report), chart(report));
+  const defenders = defense(report);
+  if (defenders) root.append(defenders);
   const cards = honours(report);
   if (cards) root.append(cards);
   root.append(details(report));
