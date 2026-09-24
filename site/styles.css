@@ -278,3 +278,6 @@ h1, h2, h3, p { margin: 0; }
 .cond-rec { font-weight: 800; color: var(--us); white-space: nowrap; }
 .cond-row.enemy .cond-rec { color: var(--them); }
 .cond-empty { color: var(--faint); font-size: .78rem; justify-content: flex-start !important; }
+
+.pip.live { width: auto; padding: 0 6px; background: #d8cfb81f; color: var(--bone); letter-spacing: .06em; }
+.live-note { color: var(--bone) !important; }

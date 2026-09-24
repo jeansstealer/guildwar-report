@@ -587,7 +587,8 @@ function history(r) {
     const pip = el("span", "pip " + String(w.result).toLowerCase(), w.result);
     const opp = el("div", "opp");
     opp.append(document.createTextNode(w.opponent || "—"));
-    if (w.current) opp.append(el("small", "", "This report"));
+    if (w.inProgress) opp.append(el("small", "live-note", "In progress · score so far"));
+    else if (w.current) opp.append(el("small", "", "This report"));
     const sc = el("div", "scores num");
     sc.append(el("span", "ours", count(w.ourScore)), document.createTextNode(" – "), el("span", "theirs", count(w.theirScore)));
     row.append(pip, el("span", "date", w.date), opp, sc, el("span", "ppt num", count(w.ppt) + " / token"));
@@ -666,9 +667,39 @@ function fromFirstBattle(r) {
   });
 }
 
+// Older sheet code doesn't mark a war that is still being fought, and printed
+// Sheets dates in long form. Apply the same rules as the sheet does now: the
+// newest war is in progress until 2.5 days after it started, and doesn't count
+// in the season record until then.
+function normaliseHistory(r) {
+  const hist = Array.isArray(r.history) ? r.history.map(w => Object.assign({}, w)) : [];
+  if (!hist.length) return r;
+  hist.forEach(w => {
+    const t = Date.parse(w.date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(w.date)) && isFinite(t)) {
+      const d = new Date(t);
+      w.date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+  });
+  const out = Object.assign({}, r, { history: hist });
+  if (hist.some(w => "inProgress" in w)) return out;  // new sheet code already decided
+  const newest = hist.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0).pop();
+  const started = Date.parse(newest.date + "T00:00:00Z");
+  if (!isFinite(started) || Date.now() - started >= 2.5 * 864e5 || newest.result === "LIVE") return out;
+  const strip = r.seasonStrip || {};
+  const rec = Object.assign({ w: 0, l: 0, d: 0 }, strip.record);
+  const k = { W: "w", L: "l", D: "d" }[newest.result];
+  if (k && rec[k] > 0) rec[k]--;
+  const last5 = (strip.last5 || []).slice();
+  if (last5.length && last5[last5.length - 1] === newest.result) last5.pop();
+  newest.result = "LIVE"; newest.inProgress = true;
+  out.seasonStrip = Object.assign({}, strip, { record: rec, last5 });
+  return out;
+}
+
 function render(r) {
   if (!r || !r.us || !r.them) throw new Error("Invalid report");
-  r = fromFirstBattle(r);
+  r = normaliseHistory(fromFirstBattle(r));
   badge.textContent = "Season " + (r.season || "?");
   if (r.generatedAt) updated.textContent = "Updated " + new Date(r.generatedAt).toLocaleString();
   root.replaceChildren(...[hero(r), headToHead(r), timeline(r), honours(r), players(r), bestTeams(r), history(r), more(r)].filter(Boolean));
