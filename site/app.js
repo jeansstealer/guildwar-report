@@ -419,10 +419,11 @@ function bestTeams(r) {
     ["defence", "Defence teams", g => (comps[g] || {}).defence || []],
     ["attack", "Attack teams", g => (comps[g] || {}).attack || []],
     ["single", "Single lineups", g => singles[g] || []],
+    ["battlefield", "By battlefield", g => (r.conditions || {})[g] || []],
   ].filter(([, , get]) => guilds.some(([g]) => get(g).length));
   if (!MODES.length) return null;
 
-  const s = section("Best teams", "Top 10");
+  const s = section("Best teams", "Top 10 per view");
   let mode = MODES[0][0], guild = "ours";
   const modeBar = el("div", "sorts");
   MODES.forEach(([k, label]) => {
@@ -498,9 +499,35 @@ function bestTeams(r) {
       "so wins on fresh lineups show real strength and wins after failed attacks are clean-ups. " +
       "Fresh / 1 fail / 2+ fails = how many attacks had already failed on the lineup.",
     single: "One player's lineup. Ranked by the most enemy attacks it needed before it fell, then its average across every time it was beaten.",
+    battlefield: "How attacks went under each battlefield condition, and the attack teams that won most there (2+ attacks). " +
+      "Medicae Stations heal defenders; Anti-Air, Artillery, Armoury and Landing Pads buff nearby zones; the Bunker fortifies itself.",
   };
 
+  function conditionRow(c) {
+    const li = el("li", "cond-row" + (guild === "theirs" ? " enemy" : ""));
+    const head = el("div", "cond-head");
+    const title = el("div");
+    title.append(el("h3", "", c.label), el("p", "team-story", c.detail));
+    const fig = figure(pct(c.wins / c.attacks), "win rate");
+    fig.title = `${c.wins} of ${c.attacks} attacks won` + (c.freshAttacks ? `; ${c.freshWins} of ${c.freshAttacks} on fresh lineups` : "");
+    head.append(title, fig);
+    li.append(head);
+    li.append(el("p", "team-where", `${plural(c.attacks, "attack", "attacks")} · ${plural(c.wins, "win", "wins")}` +
+      (c.freshAttacks ? ` · ${pct(c.freshWins / c.freshAttacks)} on fresh lineups` : "")));
+    const teams = el("ol", "cond-teams");
+    (c.teams || []).forEach(t => {
+      const tr = el("li");
+      tr.append(chips(t.units, []), el("span", "cond-rec num", `${t.wins}/${t.uses}`));
+      tr.lastChild.title = `${t.wins} of ${t.uses} won` + (t.firstHits ? ` (${t.firstWins} of ${t.firstHits} on fresh lineups)` : "");
+      teams.append(tr);
+    });
+    if (!(c.teams || []).length) teams.append(el("li", "cond-empty", "No team used twice under this condition yet"));
+    li.append(teams);
+    return li;
+  }
+
   function row(t, i) {
+    if (mode === "battlefield") return conditionRow(t);
     const li = el("li", "team-row" + (guild === "theirs" ? " enemy" : ""));
     const body = el("div", "team-lineup");
     if (mode === "defence") {
@@ -540,7 +567,7 @@ function bestTeams(r) {
     attackBar.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === attackSort)));
     let items = get(guild).slice();
     if (mode === "attack") items.sort(attackOrder);
-    items = items.slice(0, 10);
+    if (mode !== "battlefield") items = items.slice(0, 10);
     if (!items.length) list.append(el("li", "chart-note", "Not enough repeated teams yet."));
     items.forEach((t, i) => list.append(row(t, i)));
   }

@@ -14,6 +14,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }  /* flex/grid classes must not un-hide elements */
 html { background: var(--bg); }
 body {
   margin: 0;
@@ -264,3 +265,16 @@ h1, h2, h3, p { margin: 0; }
 .team-row.enemy .debuff i { background: var(--them); }
 .debuff.none { opacity: .45; }
 @media (max-width: 460px) { .debuff-strip { grid-template-columns: 1fr; } }
+
+/* best teams: by battlefield condition */
+.cond-row { padding: 14px 16px; background: var(--panel); border-radius: 10px; border-left: 3px solid var(--us); }
+.cond-row.enemy { border-left-color: var(--them-deep); }
+.cond-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.cond-head h3 { font-size: 1rem; }
+.cond-row .team-where { margin-top: 4px; }
+.cond-teams { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.cond-teams li { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 6px 0; border-top: 1px solid var(--rule); }
+.cond-rec { font-weight: 800; color: var(--us); white-space: nowrap; }
+.cond-row.enemy .cond-rec { color: var(--them); }
+.cond-empty { color: var(--faint); font-size: .78rem; justify-content: flex-start !important; }
