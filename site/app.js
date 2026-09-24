@@ -440,6 +440,34 @@ function bestTeams(r) {
   });
   const note = el("p", "round-note");
   const list = el("ol", "teams-list");
+  // Attack teams can be ranked on fresh lineups only (the fair test) or overall.
+  let attackSort = "fresh";
+  const attackBar = el("div", "sorts rounds");
+  [["fresh", "Rank by fresh lineups"], ["overall", "Rank by all attacks"]].forEach(([k, label]) => {
+    const b = el("button", "sort", label);
+    b.type = "button"; b.dataset.k = k;
+    b.addEventListener("click", () => { attackSort = k; paint(); });
+    attackBar.append(b);
+  });
+  const freshRate = t => t.firstHits ? t.firstWins / t.firstHits : -1;
+  const attackOrder = (a, b) => attackSort === "fresh"
+    ? freshRate(b) - freshRate(a) || b.firstHits - a.firstHits || b.wins / b.uses - a.wins / a.uses
+    : b.wins / b.uses - a.wins / a.uses || b.uses - a.uses || b.avgScore - a.avgScore;
+  // Wins split by the lineup's state when it was attacked.
+  const STATES = ["Fresh", "1 fail", "2+ fails"];
+  const STATE_TIPS = ["lineups nobody had attacked yet", "lineups after 1 failed attack", "lineups after 2 or more failed attacks"];
+  const debuffStrip = t => {
+    const strip = el("div", "debuff-strip");
+    (t.byDebuff || []).forEach(d => {
+      const cell = el("span", "debuff" + (d.uses ? "" : " none"));
+      const bar = el("i");
+      bar.style.width = (d.uses ? d.wins / d.uses * 100 : 0) + "%";
+      cell.append(el("b", "", STATES[d.level] || "Level " + d.level), el("em", "num", d.uses ? `${d.wins}/${d.uses}` : "—"), bar);
+      cell.title = d.uses ? `${d.wins} of ${d.uses} won (${pct(d.wins / d.uses)}) on ${STATE_TIPS[d.level]}` : "Not used on " + STATE_TIPS[d.level];
+      strip.append(cell);
+    });
+    return strip;
+  };
 
   const chips = (units, mows) => {
     const box = el("div", "team-units");
@@ -466,7 +494,9 @@ function bestTeams(r) {
 
   const NOTES = {
     defence: "Every lineup that used these 5 units, added up. Attacks to beat = enemy attacks taken ÷ lineups lost. Held off = share of enemy attacks that failed. Teams used by 2+ lineups.",
-    attack: "Every attack made with these 5 units, added up. Ranked by win rate, then by how often it was used. Teams used 3+ times.",
+    attack: "Every attack made with these 5 units, added up (teams used 3+ times). A failed attack weakens the lineup for the next attacker, " +
+      "so wins on fresh lineups show real strength and wins after failed attacks are clean-ups. " +
+      "Fresh / 1 fail / 2+ fails = how many attacks had already failed on the lineup.",
     single: "One player's lineup. Ranked by the most enemy attacks it needed before it fell, then its average across every time it was beaten.",
   };
 
@@ -481,10 +511,15 @@ function bestTeams(r) {
       li.append(el("span", "team-rank", i + 1), body,
         figure(t.lost ? (t.taken / t.lost).toFixed(1) : t.taken + "+", "attacks to beat", "Enemy attacks needed per lineup lost"));
     } else if (mode === "attack") {
+      const fresh = attackSort === "fresh";
       body.append(chips(t.units, t.mows),
-        el("p", "team-where", `${plural(t.uses, "attack", "attacks")} by ${plural(t.players, "player", "players")} · ${plural(t.wins, "win", "wins")}`),
-        el("p", "team-story", `${t.firstHits ? pct(t.firstWins / t.firstHits) : "—"} on fresh lineups · ${count(t.avgScore)} average score`));
-      li.append(el("span", "team-rank", i + 1), body, figure(pct(t.wins / t.uses), "win rate"));
+        el("p", "team-where", `${plural(t.uses, "attack", "attacks")} by ${plural(t.players, "player", "players")} · ` +
+          `${plural(t.wins, "win", "wins")} · ${count(t.avgScore)} average score`));
+      if (Array.isArray(t.byDebuff)) body.append(debuffStrip(t));
+      else body.append(el("p", "team-story", `${t.firstHits ? pct(t.firstWins / t.firstHits) : "—"} on fresh lineups`));
+      li.append(el("span", "team-rank", i + 1), body,
+        fresh ? figure(t.firstHits ? pct(t.firstWins / t.firstHits) : "—", "fresh win rate", "Wins on lineups nobody had attacked yet")
+          : figure(pct(t.wins / t.uses), "win rate"));
     } else {
       body.append(chips(t.units, [t.mow]),
         el("p", "team-where", [t.owner, t.zone, count(t.power) + " power"].filter(Boolean).join(" · ")),
@@ -501,12 +536,16 @@ function bestTeams(r) {
     const get = MODES.find(m => m[0] === mode)[2];
     note.textContent = NOTES[mode] + (mode === "single" && guild === "theirs" ? " Enemy lineups are shown without owners." : "");
     list.replaceChildren();
-    const items = get(guild).slice(0, 10);
+    attackBar.hidden = mode !== "attack";
+    attackBar.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === attackSort)));
+    let items = get(guild).slice();
+    if (mode === "attack") items.sort(attackOrder);
+    items = items.slice(0, 10);
     if (!items.length) list.append(el("li", "chart-note", "Not enough repeated teams yet."));
     items.forEach((t, i) => list.append(row(t, i)));
   }
   paint();
-  s.append(modeBar, guildBar, note, list);
+  s.append(modeBar, guildBar, attackBar, note, list);
   return s;
 }
 

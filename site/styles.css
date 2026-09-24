@@ -253,3 +253,14 @@ h1, h2, h3, p { margin: 0; }
   .team-row { grid-template-columns: 20px minmax(0, 1fr) 86px; }
   .team-figure span { font-size: .58rem; letter-spacing: .04em; }
 }
+
+/* attack teams: wins by lineup state */
+.debuff-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 9px; }
+.debuff { position: relative; display: flex; justify-content: space-between; align-items: baseline; gap: 6px;
+  padding: 5px 8px 8px; border-radius: 6px; background: var(--raised); font-size: .72rem; overflow: hidden; }
+.debuff b { color: var(--muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.debuff em { font-style: normal; font-weight: 700; color: var(--bone); }
+.debuff i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--us); }
+.team-row.enemy .debuff i { background: var(--them); }
+.debuff.none { opacity: .45; }
+@media (max-width: 460px) { .debuff-strip { grid-template-columns: 1fr; } }
