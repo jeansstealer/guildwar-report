@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "site/**"
+      - "scripts/**"
       - ".github/workflows/pages.yml"
   schedule:
     - cron: "17,47 * * * *"
@@ -27,25 +28,26 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch latest public report
+      - name: Test the report picker
+        run: python3 -m unittest discover -s scripts
+
+      - name: Fetch every guild sheet's report and publish the best one
         env:
+          # One feed per spreadsheet that captures wars (you, the guild leader, ...).
           REPORT_FEED_URL: ${{ secrets.REPORT_FEED_URL }}
+          REPORT_FEED_URL_2: ${{ secrets.REPORT_FEED_URL_2 }}
         run: |
-          if [ -n "$REPORT_FEED_URL" ]; then
-            curl --fail --location --silent --show-error --retry 3 --max-time 45 \
-              "$REPORT_FEED_URL" --output "$RUNNER_TEMP/report.json"
-            python3 - "$RUNNER_TEMP/report.json" <<'PY'
-          import json
-          import sys
-          with open(sys.argv[1], encoding="utf-8") as stream:
-              payload = json.load(stream)
-          assert payload.get("status") in ("ok", "no_report"), "Unexpected report feed response"
-          if payload["status"] == "ok":
-              report = payload.get("report")
-              assert isinstance(report, dict) and "players" not in report, "Unsafe report feed"
-              assert isinstance(report.get("us"), dict) and isinstance(report.get("them"), dict), "Incomplete report feed"
-          PY
-            cp "$RUNNER_TEMP/report.json" site/report.json
+          feeds=()
+          i=0
+          for url in "$REPORT_FEED_URL" "$REPORT_FEED_URL_2"; do
+            [ -n "$url" ] || continue
+            i=$((i + 1))
+            # A failed fetch is skipped; the picker ignores anything unusable.
+            curl --fail --location --silent --show-error --retry 3 --max-time 45               "$url" --output "$RUNNER_TEMP/feed$i.json" || echo '{}' > "$RUNNER_TEMP/feed$i.json"
+            feeds+=("$RUNNER_TEMP/feed$i.json")
+          done
+          if [ ${#feeds[@]} -gt 0 ]; then
+            python3 scripts/pick_report.py site/report.json "${feeds[@]}"
           fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
